@@ -1,0 +1,51 @@
+.vscode
+.devcontainer
+*.csv
+*.xlsx
+*.png
+*.svg
+*.log
+*.saa
+*.txt
+*.eps
+*.pdf
+*.pkl
+*.tar
+*.mp4
+*.egg-info
+*.onnx
+venv*
+misc
+__pycache__
+
+# ROS2
+/log
+/install
+/build
+.idea
+
+# Allow data-generation-configs
+train/tb_logs
+train/trained_models
+
+# don't ignore some parameter files.
+!train/configs
+
+# training data
+data/mix_net_dataloaders/**
+!data/mix_net_dataloaders/sample/**
+!data/indy_net_sample.txt
+!data/mix_net_sample.pkl
+
+# Allow map data to be commited
+!mix_net/mix_net/data/map/*
+
+# Logs
+logs/
+
+# Allow assets folder to be commited
+!*assets/*
+
+# Allow to keep best model
+!mix_net/mix_net/data/params/**
+!mix_net/mix_net/data/inference_model/**

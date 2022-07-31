@@ -1,0 +1,48 @@
+{
+    "train": true,
+    "test": false,
+    "model":
+    {
+        "load_model": false,
+        "model_load_path": ""
+    },
+    "data":
+    {
+        "frequency": 10.0,
+        "map_file_path": "mix_net/mix_net/data/map/traj_ltpl_cl_IMS_GPS.csv",
+        "path": "data/mix_net_sample.pkl",
+        "use_every_nth": 1.0,
+        "from_saved_dataloader": false,
+        "dataloader_path": "",
+        "train_size": 0.8,
+        "val_size": 0.1,
+        "test_size": 0.1,
+        "cut_hist_probability": 0.5,
+        "min_hist_len": 5,
+        "shuffle": true,
+        "random_state": 0
+    },
+    "training":
+    {
+        "pred_len": 51,
+        "batch_size": 128,
+        "num_epochs": 50,
+        "loss_fn": "WMSE",
+        "max_weight": 1.5,
+        "weighting_horizon": 10,
+        "lr": 5e-5,
+        "lr_decay_rate": 0.997,
+        "weight_decay": 1e-7,
+        "model_save_path": "train/trained_models/mix_net"
+    },
+    "logging":
+    {
+        "train_loss_log_interval": 10,
+        "log_path": "train/logs/mix_net_training",
+        "save_dataloaders": true,
+        "dataloader_path": "data/mix_net_dataloaders",
+        "save_train_dataloader": true,
+        "save_val_dataloader": true,
+        "save_test_dataloader": true
+    }
+}
