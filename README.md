@@ -107,4 +107,4 @@ The average computation times for predicting four vehicles on a single core of a
 
 ## References
 
-Phillip Karle, Ferenc Török, Maximilian Geisslinger and Markus Lienkamp "Mixnet: Structured Deep Neural Motion Prediction for Autonomous Racing". *Field Robotics 2022: Opportunities and Challenges with Autonomous Racing*
+Phillip Karle, Ferenc Török, Maximilian Geisslinger and Markus Lienkamp "Mixnet: Structured Deep Neural Motion Prediction for Autonomous Racing". *Journal of Field Robotics 2022*
