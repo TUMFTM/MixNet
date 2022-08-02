@@ -1,3 +1,7 @@
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.6953977.svg)](https://doi.org/10.5281/zenodo.6953977)
+[![Linux](https://svgshare.com/i/Zhy.svg)](https://svgshare.com/i/Zhy.svg)
+[![Python 3.8](https://img.shields.io/badge/python-3.8-blue.svg)](https://www.python.org/downloads/release/python-380/)
+[![GPLv3 license](https://img.shields.io/badge/License-GPLv3-blue.svg)](http://perso.crans.org/besson/LICENSE.html
 # MixNet
 
 ### Structured Deep Neural Motion Prediction for Autonomous Racing
@@ -40,9 +44,9 @@ All parameters used for the training and evaluation are specified in the MixNet-
 ## Data and Evaluation
 * A sample of the raw data (`data/mix_net_sample.pkl`) and the processed data (torch.Dataloader, `data/mix_net_dataloaders/sample`) are included in the repository. Per default, the samples are used in the MixNet trainer.
 
-* The full dataset, either raw data or the processed in torch.Dataloader-format can be downloaded [here](https://syncandshare.lrz.de/getlink/fiE6UfQnV3n2YMYrTCPmR7sU/). To use the raw data, extract them and change the key `path` in the section `data` in the MixNet-config-file. Note that every parent directory containing .pkl-files can be specified. To use the dataloaders, extract them, set `"from_saved_dataloader": true` and specify the `dataloader_path` in the section `data` in the MixNet-config-file.
+* The full dataset, either raw data or the processed in torch.Dataloader-format can be downloaded [here](https://doi.org/10.5281/zenodo.6954020). To use the raw data, extract them and change the key `path` in the section `data` in the MixNet-config-file. Note that every parent directory containing .pkl-files can be specified. To use the dataloaders, extract them, set `"from_saved_dataloader": true` and specify the `dataloader_path` in the section `data` in the MixNet-config-file.
 
-* The evaluation data is also available to [download](https://syncandshare.lrz.de/getlink/fiE6UfQnV3n2YMYrTCPmR7sU/). Copy the folder `evaluation_data` into this repository folder `data/evaluation_data`. The details how to evaluate the data are given in the related [readme](data/evaluation_data/README.md).
+* The evaluation data is also available to [download](https://doi.org/10.5281/zenodo.6954020). Copy the folder `evaluation_data` into this repository folder `data/evaluation_data`. The details how to evaluate the data are given in the related [readme](data/evaluation_data/README.md).
 
 ## ROS2-Node
 It is recommended to run the ROS2-node of the module in a Docker container. To build the related image, execute:
@@ -107,4 +111,4 @@ The average computation times for predicting four vehicles on a single core of a
 
 ## References
 
-Phillip Karle, Ferenc Török, Maximilian Geisslinger and Markus Lienkamp "Mixnet: Structured Deep Neural Motion Prediction for Autonomous Racing". *Journal of Field Robotics 2022*
+Phillip Karle, Ferenc Török, Maximilian Geisslinger and Markus Lienkamp "MixNet: Structured Deep Neural Motion Prediction for Autonomous Racing" (under review)
