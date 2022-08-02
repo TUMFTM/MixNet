@@ -9,7 +9,7 @@
 ## Overall prediction performance
 1. MixNet
 ```
-python tools/evaluation.py --logdir evaluation_data/1_mixnet --save-path evaluation_data/results/mix_net --MAE_tot
+python tools/evaluation.py --logdir data/evaluation_data/1_mixnet --save-path data/evaluation_data/results/mix_net --MAE_tot
 ```
 ```
 ---------- Total MAE (L2-Norm) ----------
@@ -20,7 +20,7 @@ Overall average velocity in the logs: 71.322 m/s
 
 2. IndyNet:
 ```
-python tools/evaluation.py --logdir evaluation_data/2_indynet --save-path evaluation_data/results/indy_net --MAE_tot
+python tools/evaluation.py --logdir data/evaluation_data/2_indynet --save-path data/evaluation_data/results/indy_net --MAE_tot
 ```
 Output:
 ```
@@ -33,7 +33,7 @@ Overall average velocity in the logs: 71.532 m/s
 ## Line plots
 
 ```
-python tools/evaluation_line_plot.py --save-path evaluation_data/line_plots
+python tools/evaluation_line_plot.py --save-path data/evaluation_data/line_plots
 ```
 
 ## Input-Output correlation
@@ -50,8 +50,8 @@ weights out: [0.22620717 0.17092304 0.10150512 0.50136465]
 ## Smoothness plot
 
 Recommended scenario to evaluate is `scenario_02` at predictionID = 760. To compare the MixNet with the benchmark model both replayed logs have to be inputted, which are:
-- logdir_benchmark: "evaluation_data/2_indynet/12_13_21/"
-- logdir_mixnet: "evaluation_data/1_mixnet/14_23_40/"
+- logdir_benchmark: "data/evaluation_data/2_indynet/12_13_21/"
+- logdir_mixnet: "data/evaluation_data/1_mixnet/14_23_40/"
 
 Run the following command to visualize the exemplary sample:
 ```
