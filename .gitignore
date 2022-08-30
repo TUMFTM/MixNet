@@ -24,6 +24,9 @@ __pycache__
 /build
 .idea
 
+# Keep requirements
+!requirements.txt
+
 # Allow data-generation-configs
 train/tb_logs
 train/trained_models
