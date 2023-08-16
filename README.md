@@ -111,5 +111,15 @@ Below is an exemplary visualization of the prediction on a scenario on the India
 The average computation times for predicting four vehicles on a single core of an Intel i7-4720HQ 2.6 GHz CPU for MixNet is 9 ms.
 
 ## References
+P. Karle, F. Török, M. Geisslinger and M. Lienkamp, "MixNet: Physics Constrained Deep Neural Motion Prediction for Autonomous Racing," in *IEEE Access*, doi: 10.1109/ACCESS.2023.3303841.
 
-Phillip Karle, Ferenc Török, Maximilian Geisslinger and Markus Lienkamp "MixNet: Structured Deep Neural Motion Prediction for Autonomous Racing" (under review)
+BibTex:
+```
+@ARTICLE{Karle2023_2,
+  author={Karle, Phillip and Török, Ferenc and Geisslinger, Maximilian and Lienkamp, Markus},
+  journal={IEEE Access}, 
+  title={MixNet: Physics Constrained Deep Neural Motion Prediction for Autonomous Racing}, 
+  year={2023},
+  doi={10.1109/ACCESS.2023.3303841}
+}
+```
