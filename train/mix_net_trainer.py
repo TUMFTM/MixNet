@@ -404,7 +404,7 @@ class MixNetTrainer:
         test_len = len(self._dataloaders["test"])
 
         with torch.no_grad():
-            for (hist, fut, fut_inds, left_bound, right_bound) in self._dataloaders[
+            for hist, fut, fut_inds, left_bound, right_bound in self._dataloaders[
                 "test"
             ]:
                 out = self._net(hist, left_bound, right_bound)
@@ -690,7 +690,7 @@ class MixNetTrainer:
         self._net.eval()
 
         with torch.no_grad():
-            for (hist, fut, fut_inds, left_bound, right_bound) in self._dataloaders[
+            for hist, fut, fut_inds, left_bound, right_bound in self._dataloaders[
                 "test"
             ]:
                 mix_out, vel_out, acc_out = self._net(hist, left_bound, right_bound)
@@ -767,10 +767,10 @@ class MixNetTrainer:
                     )
 
                     # plot output
-                    str1 = "$\mathrm{MAE}_{\mathrm{path}}$ = " + "{:.02f} m".format(
+                    str1 = "$\mathrm{RMSE}_{\mathrm{path}}$ = " + "{:.02f} m".format(
                         path_loss
                     )
-                    str2 = "$\mathrm{MAE}_{\mathrm{vel}}$ = " + "{:.02f} m".format(
+                    str2 = "$\mathrm{RMSE}_{\mathrm{vel}}$ = " + "{:.02f} m".format(
                         vel_loss
                     )
 

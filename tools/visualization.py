@@ -18,7 +18,6 @@ def visualize(
     rmse=None,
     ax_no=None,
 ):
-
     ax.cla()
     if rmse:
         ax.text(0, -30, "RMSE: {0:.2f} m".format(rmse), fontsize=18)

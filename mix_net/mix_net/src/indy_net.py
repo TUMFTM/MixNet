@@ -24,7 +24,6 @@ def outputActivation(x):
 
 
 class IndyNet(nn.Module):
-
     # Initialization
     def __init__(self, args):
         super(IndyNet, self).__init__()
@@ -123,7 +122,6 @@ class IndyNet(nn.Module):
 
     # Forward Pass
     def forward(self, hist, left_bound, right_bound, ego=None):
-
         if self.args["decoder_type"] == "original":
             # Forward pass hist:
             hist_enc = self.get_hidden_state(
@@ -217,7 +215,6 @@ class IndyNet(nn.Module):
         return fut_pred
 
     def get_hidden_state(self, layer_function, enc_dec_layer="lstm"):
-
         if "lstm" in enc_dec_layer:
             _, (hidden_state, _) = layer_function
         elif "gru" in enc_dec_layer:

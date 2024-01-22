@@ -95,7 +95,6 @@ class IndyDataset(Dataset):
         for sampleId, (smpl_id, hist, fut, left_bd, right_bd, ego) in enumerate(
             samples
         ):
-
             # changing the length with a given probability:
             if self._rng.binomial(size=1, n=1, p=self._cut_probability):
                 hist_len = int(self._rng.uniform(self._min_len, hist.shape[0]))

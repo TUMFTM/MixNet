@@ -142,7 +142,6 @@ def main(common_args, verbose=True, trial=None):
     best_val_loss = np.inf
 
     for epoch_num in range(common_args["pretrainEpochs"] + common_args["trainEpochs"]):
-
         if epoch_num == 0:
             if verbose:
                 print("Pre-training with MSE loss")
@@ -176,7 +175,6 @@ def main(common_args, verbose=True, trial=None):
         train_loss = []
 
         for i, data in enumerate(tr_dataloader):
-
             # Unpack data
             smpl_id, hist, fut, left_bound, right_bound, ego = data
 
@@ -233,7 +231,6 @@ def main(common_args, verbose=True, trial=None):
         val_loss_list = []
 
         for i, data in enumerate(val_dataloader):
-
             # Unpack data
             smpl_id, hist, fut, left_bound, right_bound, ego = data
 

@@ -397,7 +397,6 @@ class PredictionLogVisualizer:
         max_pred_len = 0
 
         for pred_id in pred_dict.keys():
-
             # The prediction:
             pred_x = pred_dict[pred_id]["x"]
             pred_y = pred_dict[pred_id]["y"]
@@ -819,7 +818,6 @@ class PredictionLogVisualizer:
 
         print("Calculating Errors (this may take a while ...):")
         for line, data_sample in tqdm.tqdm(enumerate(iter_data)):
-
             (
                 _,
                 _,
@@ -830,7 +828,6 @@ class PredictionLogVisualizer:
             ) = data_sample
 
             for pred_id in pred_dict:
-
                 # The prediction:
                 pred_x = pred_dict[pred_id]["x"]
                 pred_y = pred_dict[pred_id]["y"]
@@ -870,7 +867,6 @@ class PredictionLogVisualizer:
         print("Parsing Errors:")
         for i, error_dict in enumerate([lat_error_dict, long_error_dict]):
             for ax_idx, veh_id in enumerate(tqdm.tqdm(all_vehicle_ids)):
-
                 ax_list[ax_idx, 0].set(ylabel=veh_id)
                 data_list = []
                 # Iterate over time steps
@@ -890,7 +886,6 @@ class PredictionLogVisualizer:
 
 
 if __name__ == "__main__":
-
     # Parse arguments:
     parser = argparse.ArgumentParser()
     parser.add_argument(
