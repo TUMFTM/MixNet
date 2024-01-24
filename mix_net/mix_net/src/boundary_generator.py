@@ -29,6 +29,14 @@ class BoundaryGenerator:
             self.bound_left_xy,
             track_width,
         ) = get_track_paths(track_path, bool_track_width=True)
+        # get raceline
+        (
+            _,
+            _,
+            _,
+            _,
+            self.raceline,
+        ) = get_track_paths(track_path, bool_track_width=False, bool_raceline=True)
 
         # for bool_outofbounds to provide yaw_angle
         center_yaw = get_track_kinematics(
@@ -39,6 +47,7 @@ class BoundaryGenerator:
         # interpolate boundaries function
         track_kinematics = np.hstack(
             [
+                self.raceline,
                 self.bound_right_xy,
                 self.bound_left_xy,
                 np.expand_dims(track_width, 1),
@@ -94,7 +103,7 @@ class BoundaryGenerator:
             ),  # get interpolated arc out of x,y
         }
 
-    def get_boundaries_single(self, translation):
+    def get_boundaries_single(self, translation, with_raceline=False):
         """Gets boundaries for a position stored in "translation".
 
         args:
@@ -104,29 +113,25 @@ class BoundaryGenerator:
             pillar_left: [np.array with shape=(num_of_bound_points, 2)]
             pillar_right: [np.array with shape=(num_of_bound_points, 2)]
         """
-        indi_min = (
-            np.argmin(np.linalg.norm(self.center_line - translation, axis=1))
-            % self.num_center
-        )
-
-        v_center = self.vec_center[indi_min]
-        v_veh = translation - self.center_line[indi_min]
-
-        delta_arc = np.linalg.norm(
-            np.dot(v_center, v_veh) / np.dot(v_center, v_center) * v_center
-        )
-        arc_start = self.arc_center[indi_min] + delta_arc
+        arc_start = self.get_arc_start(translation)
 
         arc_pols = (arc_start + np.linspace(0, self.view, self.numel)) % self.max_arc
 
-        track_bounds_pol = self.fn_interpol_tracks(arc_pols)
-
-        pillar_left = track_bounds_pol[:, 2:4]
-        pillar_right = track_bounds_pol[:, :2]
-
+        pillar_rl, pillar_right, pillar_left = self.get_pillars(arc_pols)
+        if with_raceline:
+            return pillar_rl, pillar_right, pillar_left
         return pillar_left, pillar_right
 
-    def get_boundaries(self, translations):
+    def get_pillars(self, arc_pols):
+        track_bounds_pol = self.fn_interpol_tracks(arc_pols)
+
+        pillar_rl = track_bounds_pol[:, :2]
+        pillar_right = track_bounds_pol[:, 2:4]
+        pillar_left = track_bounds_pol[:, 4:6]
+
+        return pillar_rl, pillar_right, pillar_left
+
+    def get_boundaries(self, translations, with_raceline=False):
         """Gets boundaries for a batch of positions in "translation".
 
         args:
@@ -151,12 +156,73 @@ class BoundaryGenerator:
         arc_pols = (
             arc_starts.reshape(-1, 1) + np.linspace(0, self.view, self.numel)
         ) % self.max_arc
-        track_bounds_pols = self.fn_interpol_tracks(arc_pols)
 
-        pillars_left = track_bounds_pols[:, :, 2:4]
-        pillars_right = track_bounds_pols[:, :, :2]
+        pillar_rl, pillar_right, pillar_left = self.get_pillars(arc_pols)
+        if with_raceline:
+            return pillar_rl, pillar_right, pillar_left
+        return pillar_left, pillar_right
 
-        return pillars_left, pillars_right
+    def get_arc_start(self, translation):
+        """Get arc length at translation point."""
+        indi_min = (
+            np.argmin(np.linalg.norm(self.center_line - translation, axis=1))
+            % self.num_center
+        )
+        vec_center = self.vec_center[indi_min]
+        vec_veh = translation - self.center_line[indi_min]
+
+        delta_arc = np.linalg.norm(
+            np.dot(vec_center, vec_veh) / np.dot(vec_center, vec_center) * vec_center
+        )
+        arc_start = (self.arc_center[indi_min] + delta_arc) % self.max_arc
+
+        return arc_start
+
+    def get_speed(self, intp_array, dt_s=0.1):
+        "Get mean speed by interpolation"
+        return np.mean(np.linalg.norm(np.diff(intp_array, axis=1), axis=0)) / dt_s
+
+    def get_rail_pred(self, translation, pred, n_fut=50, with_raceline=False):
+        """Determine rail-based prediction."""
+        arc_start = self.get_arc_start(translation)
+        pred_points = (
+            arc_start
+            + np.linspace(
+                0, np.sum(np.linalg.norm(np.diff(pred, axis=1), axis=0)), n_fut + 1
+            )
+        ) % self.max_arc
+
+        track_bounds_intp = self.fn_interpol_tracks(pred_points)
+
+        dist_right = np.linalg.norm(translation - track_bounds_intp[:, 2:4], axis=1)
+        dist_left = np.linalg.norm(translation - track_bounds_intp[:, 4:6], axis=1)
+        track_width = track_bounds_intp[:, 6]
+
+        is_inside = dist_left[0] <= track_width[0] and dist_right[0] <= track_width[0]
+        if is_inside:
+            weight_right = dist_left[0] / (dist_right[0] + dist_left[0])
+        else:
+            if dist_left[0] > dist_right[0]:
+                weight_right = 1.0
+            else:
+                weight_right = 0.0
+
+        pred_path = (
+            weight_right * track_bounds_intp[:, 2:4]
+            + (1.0 - weight_right) * track_bounds_intp[:, 4:6]
+        )
+
+        # fix projection error
+        pred_path = pred_path - (pred_path[0] - translation)
+
+        if with_raceline and is_inside:
+            add_rl_factor = np.expand_dims(np.linspace(0, 1, len(track_bounds_intp)), 1)
+            pred_path = (
+                add_rl_factor * track_bounds_intp[:, :2]
+                + np.flip(add_rl_factor) * pred_path
+            )
+
+        return pred_path.T
 
     def get_bounds_between_points(self, p1, p2):
         """Returns the boundaries that is between the 2 points p1 and p2.
@@ -266,7 +332,6 @@ class BoundaryGenerator:
                     matching_bound = self.boundary_left
 
                 if not bool_out_of_bounds_list[idx - 1]:
-
                     point_traj_inside = point_array[idx - 1]
                     point_traj_outside = point_array[idx]
 
@@ -343,11 +408,10 @@ if __name__ == "__main__":
 
     n_cals = 100
 
-    boundary_generator = BoundaryGenerator(view=400, dist=20)
+    boundary_generator = BoundaryGenerator()
     left_bound_list = []
     right_bound_list = []
     for trans, rot in zip(list(translations), rotations):
-
         left_bound, right_bound = boundary_generator.get_boundaries_single(trans, rot)
         left_bound_list.append(left_bound)
         right_bound_list.append(right_bound)
@@ -367,7 +431,6 @@ if __name__ == "__main__":
     right_bound_list = []
     for k in range(n_cals):
         for trans, rot in zip(list(translations), rotations):
-
             left_bound, right_bound = boundary_generator.get_boundaries_single(
                 trans, rot
             )

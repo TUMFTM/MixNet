@@ -86,7 +86,6 @@ class IndyNetHandler(HandlerInterface):
 
         # Iterate over NN predictions
         for idx, obj_key in enumerate(obs_storage.keys()):
-
             fut_pred = np.expand_dims(fut_preds[:, idx, :], axis=1)
 
             # Calc time_list with relative times

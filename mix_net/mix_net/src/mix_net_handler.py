@@ -122,7 +122,6 @@ class MixNetHandler(HandlerInterface):
                     pred, obj_vals["xy_positions"][0, :], obj_vals["yaw"]
                 )
             ):
-
                 time_array = np.array([pred.t for pred in physics_pred[obj_id]["pred"]])
 
                 pred = np.array(

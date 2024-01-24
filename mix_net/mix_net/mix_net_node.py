@@ -113,8 +113,6 @@ class MixNetNode(ROS2Handler):
 
         # Exit node
         if self.params["ci"]:
-            import sys
-
             sys.exit(0)
 
     def predict(self):

@@ -40,14 +40,14 @@ A MixNet training can be started with the following command:
 ```
 python train/mix_net_trainer.py
 ```
-All parameters used for the training and evaluation are specified in the MixNet-config-files ([train config](train/configs/mix_net/trainer_params_train.json), [test config](train/configs/mix_net/trainer_params_test.json)). To run an evaluation of a trained net, add the argument `--test` and run the script again. Add `--plt_vel` to evaluate the velocity profile additionally.
+All parameters used for the training and evaluation are specified in the MixNet-config-files ([train config](train/configs/mix_net/trainer_params_train.json), [test config](train/configs/mix_net/trainer_params_test.json)). Per default `10` exemplary scenarios are plotted to show the prediction behavior. The number of plotted scenarios can be changed by the flag `--max_plots`. Add `--plt_vel` to evaluate the velocity profile additionally. To save the plots instead of showing them, use the flag `--save_figs`, which stores the plots to [train/figs](train/figs). To run an evaluation of a trained net, add the argument `--test` and run the script again. 
 
 ## Data and Evaluation
-* A sample of the raw data (`data/mix_net_sample.pkl`) and the processed data (torch.Dataloader, `data/mix_net_dataloaders/sample`) are included in the repository. Per default, the samples are used in the MixNet trainer.
+* A sample of the raw data ([data/mix_net_sample.pkl](data/mix_net_sample.pkl)) and the processed data (torch.Dataloader, [data/mix_net_dataloaders/sample](data/mix_net_dataloaders/sample)) are included in the repository. Per default, the samples are used in the MixNet trainer.
 
-* The full dataset, either raw data or the processed in torch.Dataloader-format can be downloaded [here](https://doi.org/10.5281/zenodo.6954020). To use the raw data, extract them and change the key `path` in the section `data` in the MixNet-config-file. Note that every parent directory containing .pkl-files can be specified. To use the dataloaders, extract them, set `"from_saved_dataloader": true` and specify the `dataloader_path` in the section `data` in the MixNet-config-file.
+* The full dataset, either raw data or the processed in torch.Dataloader-format can be downloaded [here](https://doi.org/10.5281/zenodo.6954020). To use the raw data, extract them and change the key `path` in the section `data` in the  [mix_net-config-file](train/configs/mix_net/trainer_params_test.json). Note that every parent directory containing .pkl-files can be specified. To use the dataloaders, extract them, set `"from_saved_dataloader": true` and specify the `dataloader_path` in the section `data` in the [mix_net-config-file](train/configs/mix_net/trainer_params_test.json).
 
-* The evaluation data is also available to [download](https://doi.org/10.5281/zenodo.6954020). Copy the folder `evaluation_data` into this repository folder `data/evaluation_data`. The details how to evaluate the data are given in the related [readme](data/evaluation_data/README.md).
+* The evaluation data is also available to [download](https://doi.org/10.5281/zenodo.6954020). Copy the folder `evaluation_data` into this repository folder `data`. The details how to evaluate the data are given in the related [readme](data/evaluation_data/README.md).
 
 ## ROS2-Node
 It is recommended to run the ROS2-node of the module in a Docker container. To build the related image, execute:
@@ -65,7 +65,7 @@ Add additional parameters to the ros2 launch command if desired, see section `Pa
 
 ## Parameter and Files
 ### Directory: `mix_net`
-The directory `mix_net` contains the ROS2-node to apply the MixNet in a full software stack. 
+The directory [mix_net](mix_net) contains the ROS2-node to apply the MixNet in a full software stack. 
 
 | Files | Description |
 | ------------------ | ----------------------- |
@@ -83,13 +83,13 @@ use_cuda | boolean | False | If true the GPU and cuda is used
 
 
 ### Directory: `tools`
-The directory `tools` contains the script to visualize logged data of the applied ROS2-Node. To visualize logged data of the mix_net-node run:
+The directory [tools](tools) contains the script to visualize logged data of the applied ROS2-Node. To visualize logged data of the mix_net-node run:
 ```
 python tools/visualize_logfiles.py
 ```
 
 ### Directory: `train`
-The directory `train` contains the scripts to train the MixNet and the benchmark model (IndyNet).
+The directory [train](train) contains the scripts to train the MixNet and the benchmark model (IndyNet).
 
 | File | Description |
 | ------------------ | ----------------------- |
@@ -104,7 +104,7 @@ The configuration of the prediction module is set in [main_params.ini](mix_net/m
 
 
 ## Qualitative Example
-Below is an exemplary visualization of the prediction on a scenario on the Indianapolis Motor speedway. The input features of history, left and right boundary as well as predicted and ground truth trajectory are shown. MixNet combines the best out of two worlds: the superposition of base curves and the comprehensive, learned scenario understanding.
+Below is an exemplary visualization of the prediction on a scenario on the Indianapolis Motor Speedway. The input features of history, left and right boundary as well as predicted and ground truth trajectory are shown. MixNet combines the best out of two worlds: the superposition of base curves and the comprehensive, learned scenario understanding.
 <img src="assets/smoothness.svg" alt="smoothness" width="9900"/>
 
 ## Inference time

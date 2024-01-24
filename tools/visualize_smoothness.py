@@ -12,24 +12,17 @@ ZOOM_VEH_ID = None  # Vehicle ID that should be zoomed to
 import os
 import sys
 import argparse
-import matplotlib
 
 repo_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(repo_path)
 
 import matplotlib.pyplot as plt
 
-matplotlib.use("TkAgg")
-
-plt.rcParams.update({"font.size": 14})
-plt.rcParams.update({"text.usetex": True})
-plt.rcParams.update({"figure.autolayout": True})
-plt.rcParams.update({"font.family": "Times New Roman"})
-
 import numpy as np
 from mix_net.mix_net.src.boundary_generator import BoundaryGenerator
 
 from tools.visualize_logfiles import PredictionLogVisualizer
+from tools.evaluation_line_plot import update_matplotlib
 
 ERROR_ANALYSIS_TIME_STEPS = [9, 19, 29, 39, 49]
 TRACK_PATH = "mix_net/mix_net/data/map/traj_ltpl_cl_IMS_GPS.csv"
@@ -38,18 +31,32 @@ SAVE_DIR = "data/evaluation_data/smoothness"
 if not os.path.exists(SAVE_DIR):
     os.makedirs(SAVE_DIR)
 
+
 TUM_BLUE = (0 / 255, 101 / 255, 189 / 255)
-MIX_NET_COL = TUM_BLUE
+TUM_LIGHT_BLUE = (100 / 255, 160 / 255, 200 / 255)
+TUM_LIGHTER_BLUE = (152 / 255, 198 / 255, 234 / 255)
 TUM_ORAN = (227 / 255, 114 / 255, 34 / 255)
-INDY_NET_COL = TUM_ORAN
 TUM_GREEN = (162 / 255, 173 / 255, 0 / 255)
-RAIL_BASED_COL = TUM_GREEN
-HIST_COL = "black"
-HIST_LS = "solid"
-GT_COL = "black"
-GT_LS = "dashed"
-LINEWIDTH = 2.0
+TUM_BLACK = (0, 0, 0)
+GRAY = (104 / 255, 104 / 255, 104 / 255)
 BOUND_COL = (204 / 255, 204 / 255, 204 / 255)
+
+COLUMNWIDTH = 3.5
+PAGEWIDTH = COLUMNWIDTH * 2
+LABELFONTSIZE = 8  # IEEE is 8
+
+FIGSIZE = (PAGEWIDTH, PAGEWIDTH / 2)
+
+INDY_NET_COL = GRAY
+RAIL_BASED_COL = TUM_ORAN
+MIX_NET_COL = TUM_BLUE
+HIST_COL = TUM_BLACK
+HIST_LS = "solid"
+GT_COL = TUM_BLACK
+GT_LS = "dashed"
+BOUND_COL = BOUND_COL
+
+update_matplotlib()
 
 
 def plot_all(
@@ -70,60 +77,56 @@ def plot_all(
             hist[1, :],
             color=HIST_COL,
             linestyle="solid",
-            label="History",
+            label="IN",
         )
     _ax.plot(
         lb_sample[:, 0],
         lb_sample[:, 1],
         "x",
         color=BOUND_COL,
-        label="Boundary",
         linestyle="solid",
-        linewidth=LINEWIDTH,
     )
     _ax.plot(
         rb_sample[:, 0],
         rb_sample[:, 1],
         "x",
         color=BOUND_COL,
+        label="IN",
         linestyle="solid",
-        linewidth=LINEWIDTH,
     )
     _ax.plot(
         gt[0, :],
         gt[1, :],
         color=GT_COL,
         linestyle=GT_LS,
-        label="Ground Truth",
-        linewidth=LINEWIDTH,
+        label="GT",
     )
     _ax.plot(
-        pred_rail[:, 0],
-        pred_rail[:, 1],
+        pred_rail[0, :],
+        pred_rail[1, :],
         color=RAIL_BASED_COL,
         linestyle="solid",
-        label="Rail-based Prediction",
-        linewidth=LINEWIDTH,
+        label="RAIL",
     )
     _ax.plot(
         pred[0, :],
         pred[1, :],
         color=INDY_NET_COL,
         linestyle="solid",
-        label="Benchmark Model",
-        linewidth=LINEWIDTH,
+        label="BENCHMARK",
     )
     _ax.plot(
         pred_mix_net[0, :],
         pred_mix_net[1, :],
         color=MIX_NET_COL,
         linestyle="solid",
-        label="MixNet",
-        linewidth=LINEWIDTH,
+        label="MIXNET",
     )
 
 
-def visz_frame(visualizer_benchmark, visualizer_mixnet, pred_id: str):
+def visz_frame(
+    visualizer_benchmark, visualizer_mixnet, pred_id: str, with_raceline: bool = False
+):
     """Visualize example frame from logs.
 
     Visualized are Ground Truth, History, Bounds, MixNet, IndyNet and Rail-based Prediction.
@@ -133,14 +136,17 @@ def visz_frame(visualizer_benchmark, visualizer_mixnet, pred_id: str):
         pred_id (str): ID of prediction to visualize
     """
 
-    _fig = plt.figure(figsize=(14, 3.2))
+    _fig = plt.figure(figsize=FIGSIZE)
     _ax = _fig.add_subplot(111)
 
     _, gt, pred_bm, hist_pid = get_single_log(visualizer_benchmark, pred_id)
     boundaries_pid, _, pred_mix_net, _ = get_single_log(visualizer_mixnet, pred_id)
 
     lb_sample, rb_sample, pred_rail = get_rail_prediction(
-        visualizer_benchmark._recovered_params, boundaries_pid, hist_pid
+        visualizer_benchmark._recovered_params,
+        pred_bm,
+        hist_pid,
+        with_raceline=with_raceline,
     )
 
     # Visualize benchmark
@@ -156,7 +162,10 @@ def visz_frame(visualizer_benchmark, visualizer_mixnet, pred_id: str):
         hist=hist_pid,
     )
 
-    insax_1 = _ax.inset_axes([0.6, 0.38, 0.18, 0.6])
+    _ax.set_xlim(-227, 357)
+    _ax.set_ylim(-2417, -2280)
+
+    insax_1 = _ax.inset_axes([0.6, 0.6, 0.25, 0.7])
     insax_1.axis("equal")
 
     plot_all(
@@ -170,28 +179,58 @@ def visz_frame(visualizer_benchmark, visualizer_mixnet, pred_id: str):
         pred_mix_net,
     )
 
-    insax_xmin = 260
+    insax_xmin = 270
     insax_xmax = 315
-    insax_ymin = -2380
-    insax_ymax = -2350
+    insax_ymin = -2375
+    insax_ymax = -2340
 
     insax_1.set_xlim(insax_xmin, insax_xmax)
     insax_1.set_ylim(insax_ymin, insax_ymax)
     insax_1.set_xticklabels([])
     insax_1.set_yticklabels([])
-
     _ax.indicate_inset_zoom(insax_1, edgecolor="black")
 
+    insax_2 = _ax.inset_axes([0.1, 0.6, 0.4, 0.7])
+    insax_2.axis("equal")
+
+    plot_all(
+        insax_2,
+        boundaries_pid,
+        lb_sample,
+        rb_sample,
+        gt,
+        pred_rail,
+        pred_bm,
+        pred_mix_net,
+        hist=hist_pid,
+    )
+
+    insax_xmin = -47
+    insax_xmax = 67
+    insax_ymin = -2415
+    insax_ymax = -2380
+
+    insax_2.set_xlim(insax_xmin, insax_xmax)
+    insax_2.set_ylim(insax_ymin, insax_ymax)
+    insax_2.set_xticklabels([])
+    insax_2.set_yticklabels([])
+
+    _ax.indicate_inset_zoom(insax_2, edgecolor="black")
+
     # setting axis labels of ax1:
-    _ax.legend(loc="upper left")
+    # _ax.legend(loc="upper left")
     _ax.set_xlabel("$x$ in m")
     _ax.set_ylabel("$y$ in m")
-    plt.axis([-400, 360, -2425, -2310])
+    # plt.axis([-400, 360, -2425, -2310])
     plt.gca().set_aspect("equal", adjustable="box")
     _ax.grid(True)
 
-    plt.savefig(os.path.join("assets", "smoothness.svg"))
-    plt.savefig(os.path.join(SAVE_DIR, "smoothness.pdf"))
+    if with_raceline:
+        strstr = "_raceline"
+    else:
+        strstr = ""
+    plt.savefig(os.path.join("assets", "scenario_sample" + strstr + ".svg"))
+    plt.savefig(os.path.join(SAVE_DIR, "scenario_sample" + strstr + ".pdf"))
     plt.show()
 
 
@@ -220,26 +259,26 @@ def get_single_log(visualizer, pred_id):
         pred[:, 0], pred[:, -1]
     )
     boundaries_pid = np.array([left_bound, right_bound])
+
+    # vel = np.mean(np.linalg.norm(np.diff(np.stack([pred_dict[pred_id]["x"][:3], pred_dict[pred_id]["y"][:3]])), axis=0))/0.1
     # Ground Truth:
     gt = visualizer._get_gt_from_trajs(vehicle_id, t_abs, pred.shape[1])
 
     return boundaries_pid, gt, pred, hist_pid
 
 
-def get_rail_prediction(recovered_params, boundaries_pid, hist_pid):
+def get_rail_prediction(recovered_params, pred, hist_pid, with_raceline=False):
     """Determine rail-based prediction."""
     # get boundaries
     _bg = BoundaryGenerator(recovered_params)
-    lb_sample, rb_sample = _bg.get_boundaries_single(hist_pid[:, -1])
+    lb_sample, rb_sample = _bg.get_boundaries_single(
+        hist_pid[:, -1], with_raceline=False
+    )
 
     # determine rail-based prediction
-    track_dist = np.linalg.norm(lb_sample[0, :] - rb_sample[0, :])
-    rb_dist = np.linalg.norm(hist_pid[:, -1] - rb_sample[0, :])
-
-    weight_lb = rb_dist / track_dist
-    weight_rb = 1 - weight_lb
-
-    pred_rail = weight_lb * boundaries_pid[0] + weight_rb * boundaries_pid[1]
+    pred_rail = _bg.get_rail_pred(
+        np.array(hist_pid[:, -1]), pred=pred, with_raceline=with_raceline
+    )
 
     return lb_sample, rb_sample, pred_rail
 
@@ -291,3 +330,9 @@ if __name__ == "__main__":
 
     # visualize example of smooth prediction output
     visz_frame(visualizer_benchmark, visualizer_mixnet, pred_id=args.pred_id)
+    visz_frame(
+        visualizer_benchmark,
+        visualizer_mixnet,
+        pred_id=args.pred_id,
+        with_raceline=True,
+    )

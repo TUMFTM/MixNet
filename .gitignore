@@ -35,7 +35,7 @@ train/trained_models
 !train/configs
 
 # training data
-data/mix_net_dataloaders/**
+data/mix_net_dataloader**
 !data/mix_net_dataloaders/sample/**
 !data/indy_net_sample.txt
 !data/mix_net_sample.pkl

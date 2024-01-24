@@ -163,7 +163,6 @@ class MixNet(nn.Module):
 
 
 if __name__ == "__main__":
-
     param_file = "mod_prediction/utils/mix_net/params/net_params.json"
     with open(param_file, "r") as fp:
         params = json.load(fp)

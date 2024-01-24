@@ -23,7 +23,7 @@ Specify the file names for MixNet, IndyNet and map, which should be used by the 
 | Parameter | Type | Default | Description
 | ------------- | ------------- | ------ | ----- |
 physics_based_const_vel | boolean | false | If true, constant velocity assumption is applied |
-physics_based_init_vel | boolean| true | If true, intial velocity from observation storage is applied |
+physics_based_init_vel | boolean| true | If true, initial velocity from observation storage is applied |
 safety_physics_override | boolean | true | If true, lateral offset at the beginning of the prediction horizon is correct |
 override_error | float | 2.0 | Distance threshold in m to apply override function |
 pred_len | int | 50 | Number of prediction steps
@@ -38,11 +38,11 @@ rule_based | boolean | true | If true, interaction between the objects by fuzzy 
 no_iterations | int | 1 | Number of iterations the fuzzy logic is applied to the objects to resolve conflicts |
 priority_on_ego | boolean | true | If true, collision free ego prediction is secured
 delta_v_overtake | float | 5.0 | Velocity difference in m/s, above overtaking is modeled |
-lanechange_time | float | 2.0 | Time in s of modeld overtaking maneuver |
+lanechange_time | float | 2.0 | Time in s of modeled overtaking maneuver |
 lat_overtake_dist | float | 4.0 | Lateral distance in m of modeled overtaking maneuver |
 lat_veh_half_m | float | 0.943 | Half vehicle width in m |
 long_veh_half_m | float | 2.4605| Half vehicle length in m |
-collision_check | str | euclidean | Type of collision check (if not 'euclidean' rectangle chek is applied) |
+collision_check | str | euclidean | Type of collision check (if not 'euclidean' rectangle check is applied) |
 approx_radius | float | 2.0 | Radius in m used for euclidean collision check |
 lat_safety_m | float | 1.5 | Lateral safety distance in m for collision check |
 long_safety_m | float | 1.5 | Longitudinal safety distance in m for collision check |

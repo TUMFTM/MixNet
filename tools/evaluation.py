@@ -42,30 +42,43 @@ from mix_net.mix_net.utils.logging_helper import (
     recover_params,
     recover_trajectories,
 )
+from mix_net.mix_net.src.boundary_generator import BoundaryGenerator
 from mix_net.mix_net.utils.helper import fill_with_nans
 
 from tools.file_utils import list_dirs_with_file
 
-ERROR_ANALYSIS_TIME_STEPS = [9, 19, 29, 39, 49]
+ERROR_ANALYSIS_TIME_STEPS = list(range(50))
+ERROR_INTERVALS_STEPS = [9, 19, 29, 39, 49]
 VELOCITY_BOUNDS = [30.0, 60.0, np.inf]
 HIST_LEN_BOUNDS = [15, 25, np.inf]
+TRACK_PATH = "mix_net/mix_net/data/map/traj_ltpl_cl_IMS_GPS.csv"
 
 
 class PredictionLogEvaluator:
     """Class for visualizing the logfiles of the prediction module"""
 
-    def __init__(self, args):
+    def __init__(self, args=None):
         """Initialize a PredictionLogVisualizer object."""
 
         self._logdirs = self._list_logdirs(args.logdir)
+        self._logdir = args.logdir
         self._data_only = args.data_only
         self._save_path = args.save_path
-        self._MAE_tot = args.MAE_tot
+        self._RMSE_tot = args.RMSE_tot
+        self._rail = args.rail
 
         if "mix" in args.logdir:
             self._col = TUM_BLUE
         else:
             self._col = TUM_ORAN
+
+        if self._rail:
+            params = {
+                "MODEL_PARAMS": {"dist": 20, "view": 400},
+                "track_path": os.path.join(repo_path, TRACK_PATH),
+            }
+            self._boundary_generator = BoundaryGenerator(params=params)
+            self._with_raceline = True
 
         if args.save_path:
             if not os.path.exists(args.save_path):
@@ -128,19 +141,40 @@ class PredictionLogEvaluator:
             "num_vehs": [],
             "calc_times": [],
         }
+        if self._rail:
+            rail_error_dict = {
+                "lat_errors": [],
+                "long_errors": [],
+                "hist_lens": [],
+                "vels": [],
+                "num_vehs": [],
+                "calc_times": [],
+            }
+            print("Rail-based prediction included ...")
+        else:
+            rail_error_dict = None
 
         for logdir in self._logdirs:
             print("Processing data from {}".format(logdir))
 
             all_log_data, recovered_params = self._load_data(logdir)
 
-            error_dict = self._process_logfile(
-                all_log_data, recovered_params, error_dict
+            rail_error_dict, error_dict = self._process_logfile(
+                all_log_data, recovered_params, error_dict, rail_error_dict
             )
+
+        self.create_evaluation(error_dict=error_dict)
+
+        if self._rail:
+            print("\n\n\nEvaluating rail-based prediction ....")
+            self.create_evaluation(error_dict=rail_error_dict)
+
+    def create_evaluation(self, error_dict):
+        """Create plots and print for error metrics."""
 
         print("Creating figures...\n")
 
-        self._create_total_mae_plot(error_dict)
+        self._create_total_rmse_plot(error_dict)
         self._create_error_vs_horizon_plot(error_dict)
         self._create_error_vs_velocity_plot(error_dict)
         self._create_error_vs_histlen_plot(error_dict)
@@ -149,7 +183,7 @@ class PredictionLogEvaluator:
 
         print("Figures are done.")
 
-        if not self._MAE_tot:
+        if not self._RMSE_tot:
             plt.show()
 
     def _load_data(self, logdir):
@@ -258,8 +292,8 @@ class PredictionLogEvaluator:
 
         return np.vstack((xx, yy))
 
-    def _get_mae(self, gt, pred):
-        """Calculates the mae error between the gt and the prediction.
+    def _get_rmse(self, gt, pred):
+        """Calculates the RMSE error between the gt and the prediction.
 
         args:
             gt: np.array((2, N)), the ground truth trajectory.
@@ -317,7 +351,9 @@ class PredictionLogEvaluator:
 
         return error_lat, error_long
 
-    def _process_logfile(self, all_log_data, recovered_params, error_dict):
+    def _process_logfile(
+        self, all_log_data, recovered_params, error_dict, rail_error_dict
+    ):
         """processes the logfiles and creates a dictionary that contains the errors
         and some other data which will be used during plotting.
 
@@ -328,23 +364,23 @@ class PredictionLogEvaluator:
                 indexing is easy. The values which belong together are placed to the same index.
                 Keys:
                     lat_errors: [list of lists], contains 5 lists that contain the lateral errors for every
-                        prediction at the timesteps specified in ERROR_ANALYSIS_TIME_STEPS
+                        prediction at the timesteps specified in ERROR_INTERVALS_STEPS
                     long_errors: [list of lists], contains 5 lists that contain the longitudinal errors for every
-                        prediction at the timesteps specified in ERROR_ANALYSIS_TIME_STEPS
+                        prediction at the timesteps specified in ERROR_INTERVALS_STEPS
                     hist_lens: [list], contains the length of the history for every prediction.
                     vels: [list], contains the average velocity of the groundtruth for every prediction.
                     num_vehs: [list], contains the number of veicles for every prediction.
                     calc_times: [list], contains the calculation time that was needed for a prediction.
+            rail_error_dict: [dict], Same as error dict for evaluation of rail-based prediction.
 
         returns:
-            The error dict updated with new data from all_log_data.
+            The error dict and rail_error_dict updated with new data from all_log_data.
         """
 
         for data_sample in tqdm.tqdm(all_log_data):
-
             (
                 _,
-                _,
+                state_dict,
                 hist,
                 _,
                 pred_dict,
@@ -352,7 +388,6 @@ class PredictionLogEvaluator:
             ) = data_sample
 
             for pred_id in pred_dict.keys():
-
                 if self._data_only and (
                     pred_dict[pred_id]["prediction_type"] != "data"
                 ):
@@ -424,25 +459,86 @@ class PredictionLogEvaluator:
                     calc_time * 1000.0
                 )  # converting it to milliseconds
 
-        return error_dict
+                # rail error dict
+                if rail_error_dict is not None:
+                    # Get rail-based prediction
+                    _, translation, _ = state_dict[pred_id]
 
-    def _create_total_mae_plot(self, error_dict):
-        """Creates the plot that shows the total mae reached in these logs.
+                    # add some noise
+                    # s1 = np.array([np.random.normal(scale=0.0), np.random.normal(scale=0.0)])
+                    # s1 = np.array([np.random.normal(scale=0.5), np.random.normal(scale=0.5)])
+                    # s1 = np.array([np.random.normal(scale=1.0), np.random.normal(scale=1.0)])
+                    # s1 = np.array([np.random.normal(scale=0.0), np.random.normal(scale=1.0)])
+                    # s1 = np.array([np.random.normal(scale=1.0), np.random.normal(scale=0.0)])
+                    # translation[0] += s1[0]
+                    # translation[1] += s1[1]
+
+                    pred_rail = self._boundary_generator.get_rail_pred(
+                        translation=translation,
+                        pred=pred,
+                        with_raceline=self._with_raceline,
+                    )
+
+                    # Get errors
+                    lat_error_rail, long_error_rail = self._get_lat_long_error(
+                        gt, pred_rail
+                    )
+                    # get the datapoints which interest us:
+                    lat_error_rail = lat_error_rail[analyze_time_steps]
+                    long_error_rail = long_error_rail[analyze_time_steps]
+
+                    # Fill with nans as they have different lengths
+                    rail_error_dict["lat_errors"].append(
+                        fill_with_nans(lat_error_rail, len(ERROR_ANALYSIS_TIME_STEPS))
+                    )
+                    rail_error_dict["long_errors"].append(
+                        fill_with_nans(long_error_rail, len(ERROR_ANALYSIS_TIME_STEPS))
+                    )
+                    # history length:
+                    hist_pid = hist[pred_id]
+                    if hist_pid is not None:
+                        rail_error_dict["hist_lens"].append(len(hist_pid))
+                    else:
+                        rail_error_dict["hist_lens"].append(np.nan)
+                    # velocity:
+                    if gt.shape[1] > 1:
+                        gt_diff = np.linalg.norm((gt[:, 1:] - gt[:, :-1]), axis=0)
+                        rail_error_dict["vels"].append(
+                            np.mean(gt_diff)
+                            * float(
+                                recovered_params["MODEL_PARAMS"]["sampling_frequency"]
+                            )
+                        )
+                    else:
+                        rail_error_dict["vels"].append(rail_error_dict["vels"][-1])
+
+                    # number of vehicles:
+                    rail_error_dict["num_vehs"].append(len(list(pred_dict.keys())))
+
+                    # calculation times:
+                    rail_error_dict["calc_times"].append(
+                        calc_time * 1000.0
+                    )  # converting it to milliseconds
+
+        return rail_error_dict, error_dict
+
+    def _create_total_rmse_plot(self, error_dict):
+        """Creates the plot that shows the total RMSE reached in these logs.
 
         args:
             error_dict: [dict], every key contains a list. The lists are filled up so, that
                 indexing is easy. The values which belong together are placed to the same index.
                 Keys:
                     lat_errors: [list of lists], contains 5 lists that contain the lateral errors for every
-                        prediction at the timesteps specified in ERROR_ANALYSIS_TIME_STEPS
+                        prediction at the timesteps specified in ERROR_INTERVALS_STEPS
                     long_errors: [list of lists], contains 5 lists that contain the longitudinal errors for every
-                        prediction at the timesteps specified in ERROR_ANALYSIS_TIME_STEPS
+                        prediction at the timesteps specified in ERROR_INTERVALS_STEPS
                     hist_lens: [list], contains the length of the history for every prediction.
                     vels: [list], contains the average velocity of the groundtruth for every prediction.
                     num_vehs: [list], contains the number of veicles for every prediction.
                     calc_times: [list], contains the calculation time that was needed for a prediction.
         """
-        # MAE with L2-Norm
+        # RMSE with L2-Norm
         total_errors = np.linalg.norm(
             np.array(
                 list(
@@ -455,34 +551,34 @@ class PredictionLogEvaluator:
             axis=1,
         )
 
-        mae = np.nanmean(total_errors, axis=1)
+        rmse = np.nanmean(total_errors, axis=1)
 
         # still there remain nan values, if all of the errors were nans in a timestep.
         # (happens at the end of logfiles, where the groundtruth is too short.)
-        not_nan_mask = ~np.isnan(mae)
+        not_nan_mask = ~np.isnan(rmse)
 
-        overall_mae = np.nanmean(mae)
+        overall_rmse = np.nanmean(rmse)
 
         self._create_boxplots(
-            [mae[not_nan_mask]],
-            title="$\mathrm{MAE}_{\mathrm{L2}}$ = "
-            + "{:.3f}".format(overall_mae)
+            [rmse[not_nan_mask]],
+            title="$\mathrm{RMSE}_{\mathrm{L2}}$ = "
+            + "{:.3f}".format(overall_rmse)
             + " m",
             ax_titles=[""],
             x_label=None,
-            y_label="$\mathrm{MAE}$ in m",
+            y_label="$\mathrm{RMSE}$ in m",
             y_lims=[(0.0, 16.0)],
-            file_save_name="total_mae",
+            file_save_name="total_rmse",
         )
 
         # printing some info:
-        print("-" * 10 + " Total MAE (L2-Norm) " + "-" * 10)
+        print("-" * 10 + " Total RMSE (L2-Norm) " + "-" * 10)
         print(
             "Number of datapoints used for evaluation: {}".format(
-                mae[not_nan_mask].size
+                rmse[not_nan_mask].size
             )
         )
-        print(r"Overall MAE (L2-Norm) = {:.3f} m".format(overall_mae))
+        print(r"Overall RMSE (L2-Norm) = {:.3f} m".format(overall_rmse))
         print(
             "Overall average velocity in the logs: {:.3f} m/s".format(
                 np.mean(error_dict["vels"])
@@ -490,7 +586,7 @@ class PredictionLogEvaluator:
         )
         print("")
 
-    def _create_error_vs_horizon_plot(self, error_dict):
+    def _create_error_vs_horizon_plot(self, error_dict, no_plots=False):
         """Creates the plot that shows the errors with respect to the prediction horizon len.
 
         args:
@@ -498,9 +594,9 @@ class PredictionLogEvaluator:
                 indexing is easy. The values which belong together are placed to the same index.
                 Keys:
                     lat_errors: [list of lists], contains 5 lists that contain the lateral errors for every
-                        prediction at the timesteps specified in ERROR_ANALYSIS_TIME_STEPS
+                        prediction at the timesteps specified in ERROR_INTERVALS_STEPS
                     long_errors: [list of lists], contains 5 lists that contain the longitudinal errors for every
-                        prediction at the timesteps specified in ERROR_ANALYSIS_TIME_STEPS
+                        prediction at the timesteps specified in ERROR_INTERVALS_STEPS
                     hist_lens: [list], contains the length of the history for every prediction.
                     vels: [list], contains the average velocity of the groundtruth for every prediction.
                     num_vehs: [list], contains the number of veicles for every prediction.
@@ -512,34 +608,55 @@ class PredictionLogEvaluator:
         long_error_containers = []
 
         # creating the datacontainers for the boxplot:
-        for pred_ts in range(len(ERROR_ANALYSIS_TIME_STEPS)):
-            lat_errors_np = np.array(error_dict["lat_errors"])
-            long_errors_np = np.array(error_dict["long_errors"])
+        idx_max = None
+        for pred_ts in ERROR_INTERVALS_STEPS:
+            if idx_max is None:
+                idx_min = 0
+            else:
+                idx_min = idx_max
+            idx_max = pred_ts + 1
 
-            not_nan_mask = ~np.isnan(lat_errors_np[:, pred_ts])
+            lat_mean = np.mean(
+                np.array(error_dict["lat_errors"])[:, idx_min:idx_max], axis=1
+            )
+            long_mean = np.mean(
+                np.array(error_dict["long_errors"])[:, idx_min:idx_max], axis=1
+            )
+            not_nan_mask = ~np.isnan(lat_mean)
 
             # derive L2 norm per step
-            mae_errors = np.sqrt(
-                np.power(lat_errors_np[not_nan_mask, pred_ts], 2)
-                + np.power(long_errors_np[not_nan_mask, pred_ts], 2)
-            )
+            if "tot_errors" in error_dict:
+                tot_mean = np.mean(
+                    np.array(error_dict["tot_errors"])[:, idx_min:idx_max], axis=1
+                )
+                rmse_errors = tot_mean[not_nan_mask]
+            else:
+                rmse_errors = np.sqrt(np.power(lat_mean, 2) + np.power(long_mean, 2))
 
-            total_error_containers.append(mae_errors)
-            lat_error_containers.append(lat_errors_np[not_nan_mask, pred_ts])
-            long_error_containers.append(long_errors_np[not_nan_mask, pred_ts])
+            total_error_containers.append(rmse_errors)
+            lat_error_containers.append(lat_mean[not_nan_mask])
+            long_error_containers.append(long_mean[not_nan_mask])
+
+            if no_plots:
+                total_error_containers[-1] = list(total_error_containers[-1])
+                lat_error_containers[-1] = list(lat_error_containers[-1])
+                long_error_containers[-1] = list(long_error_containers[-1])
+
+        if no_plots:
+            return total_error_containers, lat_error_containers, long_error_containers
 
         self._create_boxplots(
             [total_error_containers, lat_error_containers, long_error_containers],
-            title="$\mathrm{MAE}_{\mathrm{L2}} \mathrm{\,\,on\,\,} t_{\mathrm{pred}}$",
+            title="$\mathrm{RMSE}_{\mathrm{L2}} \mathrm{\,\,on\,\,} t_{\mathrm{pred}}$",
             ax_titles=[
-                "$\mathrm{MAE}_{\mathrm{tot}}$",
-                "$\mathrm{MAE}_{\mathrm{lat}}$",
-                "$\mathrm{MAE}_{\mathrm{lon}}$",
+                "$\mathrm{RMSE}_{\mathrm{tot}}$",
+                "$\mathrm{RMSE}_{\mathrm{lat}}$",
+                "$\mathrm{RMSE}_{\mathrm{lon}}$",
             ],
             x_label="$t_{\mathrm{pred}}$ in s",
-            y_label="$\mathrm{MAE}$ in m",
+            y_label="$\mathrm{RMSE}$ in m",
             y_lims=[(0.0, 26.0), (0.0, 7.0), (0.0, 26.0)],
-            file_save_name="mae_pred_horizon",
+            file_save_name="rmse_pred_horizon",
         )
 
         # printing some info:
@@ -547,12 +664,12 @@ class PredictionLogEvaluator:
         for i, datapoints in enumerate(total_error_containers):
             print(
                 "Number of datapoints with {} timesteps of ground truth: {}".format(
-                    ERROR_ANALYSIS_TIME_STEPS[i], len(datapoints)
+                    ERROR_INTERVALS_STEPS[i], len(datapoints)
                 )
             )
         print("")
 
-    def _create_error_vs_velocity_plot(self, error_dict):
+    def _create_error_vs_velocity_plot(self, error_dict, no_plots=False):
         """Creates the plot that shows the errors with respect to the average velocity
         of the ground truth.
 
@@ -561,9 +678,9 @@ class PredictionLogEvaluator:
                 indexing is easy. The values which belong together are placed to the same index.
                 Keys:
                     lat_errors: [list of lists], contains 5 lists that contain the lateral errors for every
-                        prediction at the timesteps specified in ERROR_ANALYSIS_TIME_STEPS
+                        prediction at the timesteps specified in ERROR_INTERVALS_STEPS
                     long_errors: [list of lists], contains 5 lists that contain the longitudinal errors for every
-                        prediction at the timesteps specified in ERROR_ANALYSIS_TIME_STEPS
+                        prediction at the timesteps specified in ERROR_INTERVALS_STEPS
                     hist_lens: [list], contains the length of the history for every prediction.
                     vels: [list], contains the average velocity of the groundtruth for every prediction.
                     num_vehs: [list], contains the number of veicles for every prediction.
@@ -591,26 +708,34 @@ class PredictionLogEvaluator:
                 np.nanmean(error_dict["long_errors"][i])
             )
 
-            total_errors = np.sqrt(
-                np.power(error_dict["lat_errors"][i], 2)
-                + np.power(error_dict["long_errors"][i], 2)
-            )
+            # derive L2 norm per step
+            if "tot_errors" in error_dict:
+                total_error_containers[group_idx].append(
+                    np.nanmean(error_dict["tot_errors"][i])
+                )
+            else:
+                total_errors = np.sqrt(
+                    np.power(error_dict["lat_errors"][i], 2)
+                    + np.power(error_dict["long_errors"][i], 2)
+                )
+                total_error_containers[group_idx].append(np.nanmean(total_errors))
 
-            total_error_containers[group_idx].append(np.nanmean(total_errors))
+        if no_plots:
+            return total_error_containers, lat_error_containers, long_error_containers
 
         in_containers = [total_error_containers]
         ax_titles = [None]
         title_str = None
-        if not self._MAE_tot:
+        if not self._RMSE_tot:
             in_containers.append(lat_error_containers)
             in_containers.append(long_error_containers)
             ax_titles = [
-                "$\mathrm{MAE}_{\mathrm{tot}}$",
-                "$\mathrm{MAE}_{\mathrm{lat}}$",
-                "$\mathrm{MAE}_{\mathrm{lon}}$",
+                "$\mathrm{RMSE}_{\mathrm{tot}}$",
+                "$\mathrm{RMSE}_{\mathrm{lat}}$",
+                "$\mathrm{RMSE}_{\mathrm{lon}}$",
             ]
             title_str = (
-                "$\mathrm{MAE}_{\mathrm{L2}} \mathrm{\,\,on\,\,} v_{\mathrm{mean}}$"
+                "$\mathrm{RMSE}_{\mathrm{L2}} \mathrm{\,\,on\,\,} v_{\mathrm{mean}}$"
             )
 
         self._create_boxplots(
@@ -618,10 +743,10 @@ class PredictionLogEvaluator:
             title=title_str,
             ax_titles=ax_titles,
             x_label="$v$ in m/s",
-            y_label="$\mathrm{MAE}$ in m",
+            y_label="$\mathrm{RMSE}$ in m",
             x_tick_labels=["$<30$", "$30-60$", "$60<$"],
             y_lims=[(0.0, 22.0), (0.0, 11.0), (0.0, 22.0)],
-            file_save_name="mae_vs_velocity",
+            file_save_name="rmse_vs_velocity",
         )
 
         # printing some info:
@@ -634,7 +759,7 @@ class PredictionLogEvaluator:
             )
         print("")
 
-    def _create_error_vs_histlen_plot(self, error_dict):
+    def _create_error_vs_histlen_plot(self, error_dict, no_plots=False):
         """Creates the plot that shows the errors with respect to the history length.
 
         args:
@@ -642,9 +767,9 @@ class PredictionLogEvaluator:
                 indexing is easy. The values which belong together are placed to the same index.
                 Keys:
                     lat_errors: [list of lists], contains 5 lists that contain the lateral errors for every
-                        prediction at the timesteps specified in ERROR_ANALYSIS_TIME_STEPS
+                        prediction at the timesteps specified in ERROR_INTERVALS_STEPS
                     long_errors: [list of lists], contains 5 lists that contain the longitudinal errors for every
-                        prediction at the timesteps specified in ERROR_ANALYSIS_TIME_STEPS
+                        prediction at the timesteps specified in ERROR_INTERVALS_STEPS
                     hist_lens: [list], contains the length of the history for every prediction.
                     vels: [list], contains the average velocity of the groundtruth for every prediction.
                     num_vehs: [list], contains the number of veicles for every prediction.
@@ -674,25 +799,33 @@ class PredictionLogEvaluator:
                 np.nanmean(error_dict["long_errors"][i])
             )
 
-            total_errors = np.sqrt(
-                np.power(error_dict["lat_errors"][i], 2)
-                + np.power(error_dict["long_errors"][i], 2)
-            )
+            # derive L2 norm per step
+            if "tot_errors" in error_dict:
+                total_error_containers[group_idx].append(
+                    np.nanmean(error_dict["tot_errors"][i])
+                )
+            else:
+                total_errors = np.sqrt(
+                    np.power(error_dict["lat_errors"][i], 2)
+                    + np.power(error_dict["long_errors"][i], 2)
+                )
+                total_error_containers[group_idx].append(np.nanmean(total_errors))
 
-            total_error_containers[group_idx].append(np.nanmean(total_errors))
+        if no_plots:
+            return total_error_containers, lat_error_containers, long_error_containers
 
         self._create_boxplots(
             [total_error_containers, lat_error_containers, long_error_containers],
-            title="$\mathrm{MAE}_{\mathrm{L2}} \mathrm{\,\,on\,\,} t_{\mathrm{hist}}$",
+            title="$\mathrm{RMSE}_{\mathrm{L2}} \mathrm{\,\,on\,\,} t_{\mathrm{hist}}$",
             ax_titles=[
-                "$\mathrm{MAE}_{\mathrm{tot}}$",
-                "$\mathrm{MAE}_{\mathrm{lat}}$",
-                "$\mathrm{MAE}_{\mathrm{lon}}$",
+                "$\mathrm{RMSE}_{\mathrm{tot}}$",
+                "$\mathrm{RMSE}_{\mathrm{lat}}$",
+                "$\mathrm{RMSE}_{\mathrm{lon}}$",
             ],
             x_label="$t_{\mathrm{hist}}$ in s",
-            y_label="$\mathrm{MAE}$ in m",
+            y_label="$\mathrm{RMSE}$ in m",
             x_tick_labels=["0-1.5", "1.5-2.5", "2.5-3.0"],
-            file_save_name="mae_vs_t_hist",
+            file_save_name="rmse_vs_t_hist",
         )
 
         # printing some info:
@@ -705,7 +838,7 @@ class PredictionLogEvaluator:
             )
         print("")
 
-    def _create_error_vs_vehnum_plot(self, error_dict):
+    def _create_error_vs_vehnum_plot(self, error_dict, no_plots=False):
         """Creates the plot that shows the errors with respect to the number of vehicles.
 
         args:
@@ -713,9 +846,9 @@ class PredictionLogEvaluator:
                 indexing is easy. The values which belong together are placed to the same index.
                 Keys:
                     lat_errors: [list of lists], contains 5 lists that contain the lateral errors for every
-                        prediction at the timesteps specified in ERROR_ANALYSIS_TIME_STEPS
+                        prediction at the timesteps specified in ERROR_INTERVALS_STEPS
                     long_errors: [list of lists], contains 5 lists that contain the longitudinal errors for every
-                        prediction at the timesteps specified in ERROR_ANALYSIS_TIME_STEPS
+                        prediction at the timesteps specified in ERROR_INTERVALS_STEPS
                     hist_lens: [list], contains the length of the history for every prediction.
                     vels: [list], contains the average velocity of the groundtruth for every prediction.
                     num_vehs: [list], contains the number of veicles for every prediction.
@@ -748,25 +881,34 @@ class PredictionLogEvaluator:
                 np.nanmean(error_dict["long_errors"][i])
             )
 
-            total_errors = np.sqrt(
-                np.power(error_dict["lat_errors"][i], 2)
-                + np.power(error_dict["long_errors"][i], 2)
-            )
+            # derive L2 norm per step
+            if "tot_errors" in error_dict:
+                total_error_containers[num_vehs - 1].append(
+                    np.nanmean(error_dict["tot_errors"][i])
+                )
+            else:
+                total_errors = np.sqrt(
+                    np.power(error_dict["lat_errors"][i], 2)
+                    + np.power(error_dict["long_errors"][i], 2)
+                )
 
-            total_error_containers[num_vehs - 1].append(np.nanmean(total_errors))
+                total_error_containers[num_vehs - 1].append(np.nanmean(total_errors))
+
+        if no_plots:
+            return total_error_containers, lat_error_containers, long_error_containers
 
         self._create_boxplots(
             [total_error_containers, lat_error_containers, long_error_containers],
-            title="$\mathrm{MAE}_{\mathrm{L2}} \mathrm{\,\,on\,\,} n_{\mathrm{veh}}$",
+            title="$\mathrm{RMSE}_{\mathrm{L2}} \mathrm{\,\,on\,\,} n_{\mathrm{veh}}$",
             ax_titles=[
-                "$\mathrm{MAE}_{\mathrm{tot}}$",
-                "$\mathrm{MAE}_{\mathrm{lat}}$",
-                "$\mathrm{MAE}_{\mathrm{lon}}$",
+                "$\mathrm{RMSE}_{\mathrm{tot}}$",
+                "$\mathrm{RMSE}_{\mathrm{lat}}$",
+                "$\mathrm{RMSE}_{\mathrm{lon}}$",
             ],
             x_label="$n_{\mathrm{veh}}$",
-            y_label="$\mathrm{MAE}$ in m",
+            y_label="$\mathrm{RMSE}$ in m",
             y_lims=[(0.0, 16.0), (0.0, 16.0), (0.0, 16.0)],
-            file_save_name="mae_vs_n_veh",
+            file_save_name="rmse_vs_n_veh",
         )
 
         # printing some info:
@@ -779,7 +921,7 @@ class PredictionLogEvaluator:
             )
         print("")
 
-    def _create_calc_time_vs_vehnum_plot(self, error_dict):
+    def _create_calc_time_vs_vehnum_plot(self, error_dict, no_plots=False):
         """Creates the plot that shows the calculation time with respect to the number of vehicles.
 
         args:
@@ -787,9 +929,9 @@ class PredictionLogEvaluator:
                 indexing is easy. The values which belong together are placed to the same index.
                 Keys:
                     lat_errors: [list of lists], contains 5 lists that contain the lateral errors for every
-                        prediction at the timesteps specified in ERROR_ANALYSIS_TIME_STEPS
+                        prediction at the timesteps specified in ERROR_INTERVALS_STEPS
                     long_errors: [list of lists], contains 5 lists that contain the longitudinal errors for every
-                        prediction at the timesteps specified in ERROR_ANALYSIS_TIME_STEPS
+                        prediction at the timesteps specified in ERROR_INTERVALS_STEPS
                     hist_lens: [list], contains the length of the history for every prediction.
                     vels: [list], contains the average velocity of the groundtruth for every prediction.
                     num_vehs: [list], contains the number of veicles for every prediction.
@@ -812,6 +954,9 @@ class PredictionLogEvaluator:
                 continue
 
             calc_time_containers[num_vehs - 1].append(error_dict["calc_times"][i])
+
+        if no_plots:
+            return calc_time_containers
 
         self._create_boxplots(
             [calc_time_containers],
@@ -860,7 +1005,7 @@ class PredictionLogEvaluator:
         matplotlib.rcParams.update({"font.size": 32})
 
         num_boxplots = len(data_containers)
-        if self._MAE_tot:
+        if self._RMSE_tot:
             num_boxplots = 1
             title = None
             ax_titles = [None]
@@ -919,15 +1064,15 @@ class PredictionLogEvaluator:
             if y_lims is not None:
                 ax.set_ylim(bottom=y_lims[i][0], top=y_lims[i][1])
 
-            if self._MAE_tot:
+            if self._RMSE_tot:
                 break
 
         if self._save_path:
             if file_save_name is None:
                 file_name = title.replace(" ", "_") + ".pdf"
             else:
-                if self._MAE_tot:
-                    file_name = "MAE_tot_" + file_save_name + ".pdf"
+                if self._RMSE_tot:
+                    file_name = "RMSE_tot_" + file_save_name + ".pdf"
                 else:
                     file_name = file_save_name + ".pdf"
             plt.savefig(os.path.join(self._save_path, file_name), format="pdf")
@@ -943,13 +1088,18 @@ if __name__ == "__main__":
         help="The logdir. If not provided, the latest log is used.",
     )
     parser.add_argument(
-        "--MAE_tot",
+        "--RMSE_tot",
         action="store_true",
     )
     parser.add_argument(
         "--data-only",
         action="store_true",
         help="If true, only the databased predictions are considered",
+    )
+    parser.add_argument(
+        "--rail",
+        action="store_true",
+        help="If true, rail-based prediction is also evaluated",
     )
     parser.add_argument(
         "--save-path",

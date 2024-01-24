@@ -56,7 +56,6 @@ class RuleBasedInteraction(object):
         # Loop n-times over according to params
         self.pred_dict = pred_dict
         for iteration in range(self.params["no_iterations"]):
-
             # Create a list for collisions
             collision_list = self.collision_fn()
 
